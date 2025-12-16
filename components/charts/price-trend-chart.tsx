@@ -1,73 +1,99 @@
 "use client"
 
-import { type PriceStatistics, formatChangeRate } from "@/lib/api/real-estate"
+import { type PriceStatistics, formatChangeRate, formatPrice } from "@/lib/api/real-estate"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Area, AreaChart, CartesianGrid, XAxis, YAxis, Tooltip, ResponsiveContainer, Legend } from "recharts"
+import { Area, AreaChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis, Legend } from "recharts"
 
 interface PriceTrendChartProps {
   data: PriceStatistics[]
 }
 
 export function PriceTrendChart({ data }: PriceTrendChartProps) {
-  // 차트 데이터 포맷 변환
+  if (!data || data.length === 0) {
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle>가격 추이</CardTitle>
+          <CardDescription>최근 데이터가 없습니다.</CardDescription>
+        </CardHeader>
+      </Card>
+    )
+  }
+
   const chartData = data.map((stat) => ({
     period: stat.period,
-    평균가격: Math.floor(stat.avgPrice / 10000), // 억원 단위
-    최고가: Math.floor(stat.maxPrice / 10000),
-    최저가: Math.floor(stat.minPrice / 10000),
-    거래건수: stat.transactionCount,
-    변동률: stat.changeRate,
+    avgEok: Math.floor(stat.avgPrice / 10000),
+    maxEok: Math.floor(stat.maxPrice / 10000),
+    minEok: Math.floor(stat.minPrice / 10000),
+    count: stat.transactionCount,
+    changeRate: stat.changeRate,
   }))
 
-  // 가장 최근 월 데이터
-  const latestData = data[data.length - 1]
-  const previousData = data[data.length - 2]
+  const latest = data[data.length - 1]
+  const previous = data[data.length - 2]
+
+  const biggestDrop = data.reduce<{ period: string; rate: number } | null>((acc, cur) => {
+    if (!Number.isFinite(cur.changeRate)) return acc
+    if (cur.changeRate >= 0) return acc
+    if (!acc || cur.changeRate < acc.rate) return { period: cur.period, rate: cur.changeRate }
+    return acc
+  }, null)
 
   return (
     <Card>
       <CardHeader>
         <CardTitle>가격 추이 분석</CardTitle>
-        <CardDescription>최근 12개월간 부동산 거래 가격 변동</CardDescription>
+        <CardDescription>최근 {data.length}개월간 평균/최고/최저 거래가 변동</CardDescription>
       </CardHeader>
       <CardContent>
-        {/* 주요 지표 */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+        <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-6">
           <div className="p-4 rounded-lg bg-muted">
-            <div className="text-sm text-muted-foreground mb-1">평균 가격</div>
-            <div className="text-2xl font-bold">{Math.floor(latestData.avgPrice / 10000)}억</div>
-            <div className={`text-sm mt-1 ${latestData.changeRate >= 0 ? "text-success" : "text-destructive"}`}>
-              {formatChangeRate(latestData.changeRate)}
+            <div className="text-sm text-muted-foreground mb-1">평균 거래가</div>
+            <div className="text-2xl font-bold">{formatPrice(latest.avgPrice)}</div>
+            <div className={`text-sm mt-1 ${latest.changeRate >= 0 ? "text-success" : "text-destructive"}`}>
+              전월 대비 {formatChangeRate(latest.changeRate)}
             </div>
           </div>
 
           <div className="p-4 rounded-lg bg-muted">
             <div className="text-sm text-muted-foreground mb-1">최고가</div>
-            <div className="text-2xl font-bold">{Math.floor(latestData.maxPrice / 10000)}억</div>
+            <div className="text-2xl font-bold">{formatPrice(latest.maxPrice)}</div>
           </div>
 
           <div className="p-4 rounded-lg bg-muted">
             <div className="text-sm text-muted-foreground mb-1">최저가</div>
-            <div className="text-2xl font-bold">{Math.floor(latestData.minPrice / 10000)}억</div>
+            <div className="text-2xl font-bold">{formatPrice(latest.minPrice)}</div>
           </div>
 
           <div className="p-4 rounded-lg bg-muted">
             <div className="text-sm text-muted-foreground mb-1">거래 건수</div>
-            <div className="text-2xl font-bold">{latestData.transactionCount}</div>
-            {previousData && (
+            <div className="text-2xl font-bold">{latest.transactionCount}</div>
+            {previous ? (
               <div
                 className={`text-sm mt-1 ${
-                  latestData.transactionCount >= previousData.transactionCount ? "text-success" : "text-destructive"
+                  latest.transactionCount >= previous.transactionCount ? "text-success" : "text-destructive"
                 }`}
               >
-                {latestData.transactionCount - previousData.transactionCount > 0 ? "+" : ""}
-                {latestData.transactionCount - previousData.transactionCount}건
+                전월 대비 {latest.transactionCount - previous.transactionCount > 0 ? "+" : ""}
+                {latest.transactionCount - previous.transactionCount}건
               </div>
+            ) : null}
+          </div>
+
+          <div className="p-4 rounded-lg bg-muted">
+            <div className="text-sm text-muted-foreground mb-1">최근 폭락(최대)</div>
+            {biggestDrop ? (
+              <>
+                <div className="text-lg font-bold">{biggestDrop.period}</div>
+                <div className="text-sm mt-1 text-destructive">{formatChangeRate(biggestDrop.rate)}</div>
+              </>
+            ) : (
+              <div className="text-sm text-muted-foreground">하락 구간 없음</div>
             )}
           </div>
         </div>
 
-        {/* 차트 */}
-        <ResponsiveContainer width="100%" height={400}>
+        <ResponsiveContainer width="100%" height={380}>
           <AreaChart data={chartData}>
             <defs>
               <linearGradient id="colorAvg" x1="0" y1="0" x2="0" y2="1">
@@ -88,7 +114,7 @@ export function PriceTrendChart({ data }: PriceTrendChartProps) {
             <YAxis
               className="text-xs"
               tick={{ fill: "hsl(var(--muted-foreground))" }}
-              label={{ value: "가격 (억원)", angle: -90, position: "insideLeft" }}
+              label={{ value: "가격(억원)", angle: -90, position: "insideLeft" }}
             />
             <Tooltip
               contentStyle={{
@@ -97,30 +123,18 @@ export function PriceTrendChart({ data }: PriceTrendChartProps) {
                 borderRadius: "8px",
               }}
               formatter={(value: any, name: string) => {
-                if (name === "변동률") return [formatChangeRate(value), name]
-                if (name === "거래건수") return [value + "건", name]
-                return [value + "억원", name]
+                if (name === "거래 건수") return [`${value}건`, name]
+                return [`${value}억`, name]
               }}
             />
             <Legend />
-            <Area
-              type="monotone"
-              dataKey="최고가"
-              stroke="hsl(var(--destructive))"
-              fill="url(#colorMax)"
-              strokeWidth={2}
-            />
-            <Area
-              type="monotone"
-              dataKey="평균가격"
-              stroke="hsl(var(--primary))"
-              fill="url(#colorAvg)"
-              strokeWidth={3}
-            />
-            <Area type="monotone" dataKey="최저가" stroke="hsl(var(--success))" fill="url(#colorMin)" strokeWidth={2} />
+            <Area type="monotone" dataKey="maxEok" name="최고가" stroke="hsl(var(--destructive))" fill="url(#colorMax)" strokeWidth={2} />
+            <Area type="monotone" dataKey="avgEok" name="평균가" stroke="hsl(var(--primary))" fill="url(#colorAvg)" strokeWidth={3} />
+            <Area type="monotone" dataKey="minEok" name="최저가" stroke="hsl(var(--success))" fill="url(#colorMin)" strokeWidth={2} />
           </AreaChart>
         </ResponsiveContainer>
       </CardContent>
     </Card>
   )
 }
+

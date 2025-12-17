@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server"
 import { XMLParser } from "fast-xml-parser"
 
+export const runtime = "edge"
+
 const CACHE_TTL_MS = 10 * 60 * 1000
 const cache = new Map<string, { expiresAt: number; items: any[] }>()
 

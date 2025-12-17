@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server"
 import { XMLParser } from "fast-xml-parser"
 
+export const runtime = "edge"
+
 const CACHE_TTL_MS = 30 * 60 * 1000
 const cache = new Map<string, { expiresAt: number; items: Array<{ period: string; avgPrice: number; maxPrice: number; minPrice: number; transactionCount: number; changeRate: number }> }>()
 

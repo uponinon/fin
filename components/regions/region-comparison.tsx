@@ -2,26 +2,23 @@
 
 import { type RegionPriceRange, formatPrice } from "@/lib/api/real-estate"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis, Legend } from "recharts"
+import { Bar, BarChart, CartesianGrid, Legend, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts"
 
 interface RegionComparisonProps {
   data: RegionPriceRange[]
 }
 
-const COLORS = [
-  "hsl(var(--chart-1))",
-  "hsl(var(--chart-2))",
-  "hsl(var(--chart-3))",
-  "hsl(var(--chart-4))",
-  "hsl(var(--chart-5))",
-]
+const REGION_COLORS = ["var(--chart-1)", "var(--chart-2)", "var(--chart-3)", "var(--chart-4)", "var(--chart-5)"]
+const LOW_COLOR = "var(--chart-2)"
+const MEDIAN_COLOR = "var(--chart-4)"
+const HIGH_COLOR = "var(--chart-3)"
 
 export function RegionComparison({ data }: RegionComparisonProps) {
   if (!data || data.length === 0) {
     return (
       <Card>
         <CardHeader>
-          <CardTitle>지역 비교</CardTitle>
+          <CardTitle>지역별 가격 분포</CardTitle>
           <CardDescription>비교할 데이터가 없습니다.</CardDescription>
         </CardHeader>
       </Card>
@@ -59,7 +56,10 @@ export function RegionComparison({ data }: RegionComparisonProps) {
                 <tr key={item.region} className="border-b hover:bg-muted/50">
                   <td className="p-2">
                     <div className="flex items-center gap-2">
-                      <div className="w-3 h-3 rounded-full" style={{ backgroundColor: COLORS[idx % COLORS.length] }} />
+                      <div
+                        className="w-3 h-3 rounded-full"
+                        style={{ backgroundColor: REGION_COLORS[idx % REGION_COLORS.length] }}
+                      />
                       <span className="font-medium">{item.region}</span>
                     </div>
                   </td>
@@ -91,9 +91,9 @@ export function RegionComparison({ data }: RegionComparisonProps) {
               formatter={(value: any, name: string) => [`${value}억`, name]}
             />
             <Legend />
-            <Bar dataKey="lowEok" name="하위(25%)" fill="hsl(var(--success))" radius={[4, 4, 0, 0]} />
-            <Bar dataKey="medianEok" name="중위(50%)" fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} />
-            <Bar dataKey="highEok" name="상위(75%)" fill="hsl(var(--destructive))" radius={[4, 4, 0, 0]} />
+            <Bar dataKey="lowEok" name="하위(25%)" fill={LOW_COLOR} radius={[4, 4, 0, 0]} />
+            <Bar dataKey="medianEok" name="중위(50%)" fill={MEDIAN_COLOR} radius={[4, 4, 0, 0]} />
+            <Bar dataKey="highEok" name="상위(75%)" fill={HIGH_COLOR} radius={[4, 4, 0, 0]} />
           </BarChart>
         </ResponsiveContainer>
       </CardContent>

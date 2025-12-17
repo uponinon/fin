@@ -55,39 +55,31 @@ export async function fetchRealEstateData(lawdCd: string, dealYmd: string): Prom
 }
 
 export async function fetchPriceStatistics(lawdCd: string, months = 12): Promise<PriceStatistics[]> {
-  const statistics: PriceStatistics[] = []
-  const currentDate = new Date()
-
-  for (let i = 0; i < months; i++) {
-    const targetDate = new Date(currentDate)
-    targetDate.setMonth(targetDate.getMonth() - i)
-
-    const year = targetDate.getFullYear()
-    const month = String(targetDate.getMonth() + 1).padStart(2, "0")
-    const dealYmd = `${year}${month}`
-
-    const data = await fetchRealEstateData(lawdCd, dealYmd)
-    if (data.length === 0) continue
-
-    const prices = data.map((d) => d.price)
-    const avgPrice = Math.floor(prices.reduce((a, b) => a + b, 0) / prices.length)
-    const maxPrice = Math.max(...prices)
-    const minPrice = Math.min(...prices)
-
-    const previous = statistics[i - 1]
-    const changeRate = previous ? ((avgPrice - previous.avgPrice) / previous.avgPrice) * 100 : 0
-
-    statistics.push({
-      period: `${year}-${month}`,
-      avgPrice,
-      maxPrice,
-      minPrice,
-      transactionCount: data.length,
-      changeRate,
-    })
+  try {
+    const params = new URLSearchParams({ lawdCd, months: String(months) })
+    const res = await fetch(`/api/real-estate/stats?${params.toString()}`, { cache: "no-store" })
+    if (!res.ok) throw new Error(`내부 통계 API 호출 실패: ${res.status}`)
+    const json = (await res.json()) as { items: PriceStatistics[] }
+    return json.items ?? []
+  } catch {
+    return []
   }
+}
 
-  return statistics.reverse()
+export async function fetchPriceStatisticsRange(
+  lawdCd: string,
+  startDate: string,
+  endDate: string,
+): Promise<PriceStatistics[]> {
+  try {
+    const params = new URLSearchParams({ lawdCd, startDate, endDate })
+    const res = await fetch(`/api/real-estate/stats?${params.toString()}`, { cache: "no-store" })
+    if (!res.ok) throw new Error(`내부 통계 API 호출 실패: ${res.status}`)
+    const json = (await res.json()) as { items: PriceStatistics[] }
+    return json.items ?? []
+  } catch {
+    return []
+  }
 }
 
 export function calculateRegionPriceRanges(data: RealEstateTransaction[]): RegionPriceRange[] {
@@ -188,4 +180,3 @@ function generateMockData(lawdCd: string, dealYmd: string): RealEstateTransactio
 
   return mockData
 }
-

@@ -1,8 +1,13 @@
 "use client"
 
-import { useEffect, useMemo, useRef, useState } from "react"
-import { type RealEstateTransaction, getPriceColor } from "@/lib/api/real-estate"
+import { useEffect, useMemo, useRef } from "react"
+import { type RealEstateTransaction } from "@/lib/api/real-estate"
 import { Card } from "@/components/ui/card"
+import { KakaoMapHud } from "@/components/map/kakao-map-hud"
+import { useKakaoMapsSdk } from "@/hooks/kakao/useKakaoMapsSdk"
+import { useKakaoMapInstance } from "@/hooks/kakao/useKakaoMapInstance"
+import { useKakaoSelectedMarker } from "@/hooks/kakao/useKakaoSelectedMarker"
+import { useKakaoTransactionOverlays } from "@/hooks/kakao/useKakaoTransactionOverlays"
 
 declare global {
   interface Window {
@@ -12,18 +17,63 @@ declare global {
 
 interface KakaoMapProps {
   data: RealEstateTransaction[]
+  center?: { lat: number; lng: number }
   onMarkerClick?: (transaction: RealEstateTransaction) => void
+  onViewportChange?: (bounds: { sw: { lat: number; lng: number }; ne: { lat: number; lng: number } }) => void
+  onPositionsChange?: (positions: Record<string, { lat: number; lng: number }>) => void
+  fitBoundsSignal?: number
+  autoFitBounds?: boolean
+  selectedId?: string
+  selectedPosition?: { lat: number; lng: number }
 }
 
-const KAKAO_APP_KEY = process.env.NEXT_PUBLIC_KAKAO_APP_KEY
+export function KakaoMap({
+  data,
+  center,
+  onMarkerClick,
+  onViewportChange,
+  onPositionsChange,
+  fitBoundsSignal,
+  autoFitBounds = true,
+  selectedId,
+  selectedPosition,
+}: KakaoMapProps) {
+  const mapElementRef = useRef<HTMLDivElement>(null)
+  const { phase, geocodeQueueRef, sdkDebug } = useKakaoMapsSdk()
 
-export function KakaoMap({ data, onMarkerClick }: KakaoMapProps) {
-  const mapRef = useRef<HTMLDivElement>(null)
-  const [mapInstance, setMapInstance] = useState<any>(null)
-  const [overlays, setOverlays] = useState<any[]>([])
-  const [isLoaded, setIsLoaded] = useState(false)
+  const mapEnabled = phase.phase === "map_ready"
+  const { mapRef, userInteractedRef } = useKakaoMapInstance(mapEnabled, mapElementRef, onViewportChange)
 
-  const hasKey = Boolean(KAKAO_APP_KEY && KAKAO_APP_KEY.trim().length > 0)
+  const overlays = useKakaoTransactionOverlays({
+    enabled: mapEnabled,
+    map: mapRef.current,
+    data,
+    geocodeQueueRef,
+    autoFitBounds,
+    userInteractedRef,
+    onMarkerClick,
+    onPositionsChange,
+  })
+
+  useEffect(() => {
+    if (!mapEnabled) return
+    const map = mapRef.current
+    if (!map) return
+    if (!center) return
+    userInteractedRef.current = false
+    try {
+      map.setCenter(new window.kakao.maps.LatLng(center.lat, center.lng))
+    } catch {
+    }
+  }, [mapEnabled, mapRef, userInteractedRef, center?.lat, center?.lng])
+
+  useEffect(() => {
+    if (!mapEnabled) return
+    if (!fitBoundsSignal) return
+    overlays.fitToLastBounds()
+  }, [mapEnabled, fitBoundsSignal, overlays])
+
+  useKakaoSelectedMarker(mapEnabled, mapRef.current, selectedId, selectedPosition)
 
   const legend = useMemo(
     () => [
@@ -36,112 +86,67 @@ export function KakaoMap({ data, onMarkerClick }: KakaoMapProps) {
     [],
   )
 
-  // Kakao Maps JS SDK 로드
-  useEffect(() => {
-    if (!hasKey) return
-
-    if (window.kakao?.maps) {
-      setIsLoaded(true)
-      return
-    }
-
-    // TODO: Kakao Developers에서 JavaScript 키 발급 후 `.env.local`에 설정하세요.
-    // NEXT_PUBLIC_KAKAO_APP_KEY=...
-    const script = document.createElement("script")
-    script.src = `https://dapi.kakao.com/v2/maps/sdk.js?appkey=${encodeURIComponent(KAKAO_APP_KEY!)}&autoload=false`
-    script.async = true
-
-    script.onload = () => {
-      window.kakao.maps.load(() => setIsLoaded(true))
-    }
-
-    script.onerror = () => {
-      console.error("Kakao Maps API 로드 실패. 앱 키/도메인 설정을 확인하세요.")
-      setIsLoaded(false)
-    }
-
-    document.head.appendChild(script)
-    return () => script.remove()
-  }, [hasKey])
-
-  // 지도 초기화
-  useEffect(() => {
-    if (!isLoaded || !mapRef.current || mapInstance) return
-
-    const map = new window.kakao.maps.Map(mapRef.current, {
-      center: new window.kakao.maps.LatLng(37.5665, 126.978),
-      level: 7,
-    })
-    setMapInstance(map)
-
-    const zoomControl = new window.kakao.maps.ZoomControl()
-    map.addControl(zoomControl, window.kakao.maps.ControlPosition.RIGHT)
-  }, [isLoaded, mapInstance])
-
-  // 마커(오버레이) 렌더링
-  useEffect(() => {
-    if (!mapInstance || !window.kakao?.maps) return
-
-    overlays.forEach((overlay) => overlay.setMap(null))
-
-    const newOverlays = data.map((transaction) => {
-      const position = new window.kakao.maps.LatLng(transaction.lat, transaction.lng)
-      const color = getPriceColor(transaction.price)
-
-      const el = document.createElement("div")
-      el.style.background = color
-      el.style.width = "32px"
-      el.style.height = "32px"
-      el.style.borderRadius = "50%"
-      el.style.border = "3px solid white"
-      el.style.boxShadow = "0 2px 8px rgba(0,0,0,0.3)"
-      el.style.cursor = "pointer"
-      el.style.display = "flex"
-      el.style.alignItems = "center"
-      el.style.justifyContent = "center"
-      el.style.fontSize = "10px"
-      el.style.fontWeight = "700"
-      el.style.color = "white"
-      el.textContent = `${Math.floor(transaction.price / 10000)}억`
-
-      if (onMarkerClick) el.addEventListener("click", () => onMarkerClick(transaction))
-
-      const overlay = new window.kakao.maps.CustomOverlay({ position, content: el, zIndex: 1 })
-      overlay.setMap(mapInstance)
-      return overlay
-    })
-
-    setOverlays(newOverlays)
-
-    if (data.length > 0) {
-      const bounds = new window.kakao.maps.LatLngBounds()
-      data.forEach((transaction) => {
-        bounds.extend(new window.kakao.maps.LatLng(transaction.lat, transaction.lng))
-      })
-      mapInstance.setBounds(bounds)
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [mapInstance, data, onMarkerClick])
-
-  if (!hasKey) {
+  if (phase.phase === "missing_key") {
     return (
       <Card className="w-full h-full flex items-center justify-center p-6">
         <div className="text-center space-y-2">
           <div className="text-lg font-semibold">지도 API 키가 필요합니다</div>
-          <div className="text-sm text-muted-foreground">
-            `.env.local`에 `NEXT_PUBLIC_KAKAO_APP_KEY`를 설정하면 지도가 표시됩니다.
-          </div>
+          <div className="text-sm text-muted-foreground">{phase.message}</div>
         </div>
       </Card>
     )
   }
 
-  if (!isLoaded) {
+  if (phase.phase === "sdk_failed") {
+    const origin = sdkDebug?.origin ?? ""
+    const sdkUrl = sdkDebug?.sdkUrl ?? ""
+    const hasScript = sdkDebug?.hasScript ?? false
+    const hasKakao = sdkDebug?.hasKakao ?? false
+    const hasKakaoMaps = sdkDebug?.hasKakaoMaps ?? false
+
+    return (
+      <Card className="w-full h-full flex items-center justify-center p-6">
+        <div className="text-center space-y-2">
+          <div className="text-lg font-semibold">지도 로드 실패</div>
+          <div className="text-sm text-muted-foreground">
+            {phase.message}
+            <br />
+            (도메인 등록/광고차단/네트워크를 확인하세요)
+          </div>
+          {origin ? (
+            <div className="text-xs text-muted-foreground">
+              현재 접속 도메인: <span className="font-mono">{origin}</span>
+              <br />
+              Kakao Developers → 내 애플리케이션 → 플랫폼(Web) → 사이트 도메인에 위 값을 추가하세요.
+            </div>
+          ) : null}
+          <div className="text-xs text-muted-foreground">
+            상태: script태그 {hasScript ? "있음" : "없음"}, window.kakao {hasKakao ? "있음" : "없음"}, window.kakao.maps{" "}
+            {hasKakaoMaps ? "있음" : "없음"}
+          </div>
+          {sdkUrl ? (
+            <div className="pt-2 space-y-2">
+              <a className="text-xs text-primary hover:underline" href={sdkUrl} target="_blank" rel="noreferrer">
+                SDK URL 직접 열어보기(새 탭)
+              </a>
+              <div className="text-[10px] text-muted-foreground">
+                브라우저 DevTools → Network에서 `sdk.js`를 검색해 상태코드를 확인하세요.
+                <br />
+                `ERR_BLOCKED_BY_CLIENT`면 광고차단/보안프로그램이 차단 중입니다.
+              </div>
+            </div>
+          ) : null}
+        </div>
+      </Card>
+    )
+  }
+
+  if (phase.phase === "sdk_loading") {
     return (
       <Card className="w-full h-full flex items-center justify-center">
         <div className="text-center space-y-2">
           <div className="text-lg font-semibold">지도를 불러오는 중...</div>
-          <div className="text-sm text-muted-foreground">Kakao Maps API를 로드하고 있습니다.</div>
+          <div className="text-sm text-muted-foreground">Kakao Maps SDK를 다운로드/초기화하고 있습니다.</div>
         </div>
       </Card>
     )
@@ -149,26 +154,8 @@ export function KakaoMap({ data, onMarkerClick }: KakaoMapProps) {
 
   return (
     <div className="relative w-full h-full">
-      <div ref={mapRef} className="w-full h-full rounded-lg overflow-hidden" />
-
-      <Card className="absolute bottom-4 left-4 p-4 bg-card/95 backdrop-blur">
-        <div className="text-sm font-semibold mb-2">가격대별 색상</div>
-        <div className="space-y-1 text-xs">
-          {legend.map((item) => (
-            <div key={item.label} className="flex items-center gap-2">
-              <div className="w-4 h-4 rounded-full" style={{ backgroundColor: item.color }} />
-              <span>{item.label}</span>
-            </div>
-          ))}
-        </div>
-      </Card>
-
-      <Card className="absolute top-4 left-4 px-4 py-2 bg-card/95 backdrop-blur">
-        <div className="text-sm font-semibold">
-          총 <span className="text-primary">{data.length}</span>건의 거래
-        </div>
-      </Card>
+      <div ref={mapElementRef} className="w-full h-full rounded-lg overflow-hidden" />
+      <KakaoMapHud legend={legend} totalCount={data.length} markerProgress={overlays.markerProgress} />
     </div>
   )
 }
-

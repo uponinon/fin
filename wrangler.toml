@@ -1,0 +1,6 @@
+# Cloudflare Pages 로컬 테스트용 설정(선택)
+# - GitHub 연동 배포는 Cloudflare 대시보드에서 설정하면 됩니다.
+name = "fin"
+compatibility_date = "2025-01-01"
+compatibility_flags = ["nodejs_compat"]
+

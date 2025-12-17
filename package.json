@@ -7,6 +7,7 @@
     "dev": "next dev -p 3001",
     "pages:build": "next build && npx @cloudflare/next-on-pages",
     "pages:dev": "npx wrangler pages dev .vercel/output/static --port 8788 --compatibility-date=2025-01-01 --compatibility-flags=nodejs_compat",
+    "pages:deploy": "wrangler pages deploy .vercel/output/static --project-name fin",
     "start": "next start"
   },
   "dependencies": {

@@ -43,7 +43,12 @@ export function useKakaoMapsSdk() {
 
       try {
         const geocoder = new window.kakao.maps.services.Geocoder()
-        geocodeQueueRef.current = new KakaoGeocoderQueue(geocoder, { concurrency: 2, minDelayMs: 300, maxRetries: 3 })
+        geocodeQueueRef.current = new KakaoGeocoderQueue(geocoder, {
+          concurrency: 1,
+          minDelayMs: 1000,
+          maxRetries: 5,
+          baseRetryDelayMs: 1500,
+        })
       } catch {
         geocodeQueueRef.current = null
       }

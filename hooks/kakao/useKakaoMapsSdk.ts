@@ -43,7 +43,7 @@ export function useKakaoMapsSdk() {
 
       try {
         const geocoder = new window.kakao.maps.services.Geocoder()
-        geocodeQueueRef.current = new KakaoGeocoderQueue(geocoder, { concurrency: 4 })
+        geocodeQueueRef.current = new KakaoGeocoderQueue(geocoder, { concurrency: 2, minDelayMs: 300, maxRetries: 3 })
       } catch {
         geocodeQueueRef.current = null
       }
@@ -72,4 +72,3 @@ export function useKakaoMapsSdk() {
 
   return { phase, geocodeQueueRef, sdkDebug }
 }
-

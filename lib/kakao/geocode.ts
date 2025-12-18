@@ -45,11 +45,16 @@ export interface GeocodeProgress {
 export class KakaoGeocoderQueue {
   private readonly geocoder: any
   private readonly concurrency: number
+  private readonly minDelayMs: number
+  private readonly maxRetries: number
+  private readonly baseRetryDelayMs: number
   private readonly cache: Map<string, LatLng>
   private readonly memoryCache: Map<string, LatLng>
   private queue: Array<{
     key: string
     address: string
+    attempt: number
+    readyAt: number
     resolve: (v: LatLng | null) => void
   }> = []
   private inFlight = 0
@@ -57,10 +62,23 @@ export class KakaoGeocoderQueue {
   private resolved = 0
   private total = 0
   private persistTimer: any = null
+  private nextAllowedAt = 0
+  private pumpTimer: any = null
 
-  constructor(geocoder: any, { concurrency = 4 }: { concurrency?: number } = {}) {
+  constructor(
+    geocoder: any,
+    {
+      concurrency = 2,
+      minDelayMs = 250,
+      maxRetries = 3,
+      baseRetryDelayMs = 800,
+    }: { concurrency?: number; minDelayMs?: number; maxRetries?: number; baseRetryDelayMs?: number } = {},
+  ) {
     this.geocoder = geocoder
     this.concurrency = concurrency
+    this.minDelayMs = minDelayMs
+    this.maxRetries = maxRetries
+    this.baseRetryDelayMs = baseRetryDelayMs
     this.cache = loadPersistentCache()
     this.memoryCache = new Map()
   }
@@ -91,19 +109,40 @@ export class KakaoGeocoderQueue {
 
     this.total += 1
     return new Promise<LatLng | null>((resolve) => {
-      this.queue.push({ key, address: key, resolve })
+      this.queue.push({ key, address: key, attempt: 0, readyAt: Date.now(), resolve })
       this.pump()
     })
   }
 
   private pump() {
-    while (this.inFlight < this.concurrency && this.queue.length > 0) {
-      const job = this.queue.shift()!
+    if (this.pumpTimer) return
+
+    const now = Date.now()
+    const ready = this.queue.filter((j) => j.readyAt <= now)
+    if (ready.length === 0 || now < this.nextAllowedAt || this.inFlight >= this.concurrency) {
+      const earliestReadyAt = this.queue.reduce((min, j) => Math.min(min, j.readyAt), Number.POSITIVE_INFINITY)
+      const nextAt = Math.max(this.nextAllowedAt, Number.isFinite(earliestReadyAt) ? earliestReadyAt : now + 100)
+      this.pumpTimer = setTimeout(() => {
+        this.pumpTimer = null
+        this.pump()
+      }, Math.max(50, nextAt - now))
+      return
+    }
+
+    while (this.inFlight < this.concurrency) {
+      const idx = this.queue.findIndex((j) => j.readyAt <= Date.now())
+      if (idx < 0) break
+      if (Date.now() < this.nextAllowedAt) break
+      const job = this.queue.splice(idx, 1)[0]
       this.inFlight += 1
+      this.nextAllowedAt = Date.now() + this.minDelayMs
       this.geocoder.addressSearch(job.address, (result: any, status: any) => {
         this.inFlight -= 1
 
-        const ok = status === (window as any).kakao.maps.services.Status.OK
+        const servicesStatus = (window as any).kakao?.maps?.services?.Status
+        const ok = servicesStatus ? status === servicesStatus.OK : false
+        const isZero = servicesStatus ? status === servicesStatus.ZERO_RESULT : false
+        const isError = servicesStatus ? status === servicesStatus.ERROR : !ok && !isZero
         const first = ok ? result?.[0] : null
         const lat = first?.y ? Number.parseFloat(first.y) : NaN
         const lng = first?.x ? Number.parseFloat(first.x) : NaN
@@ -115,6 +154,17 @@ export class KakaoGeocoderQueue {
           this.resolved += 1
           job.resolve(value)
           this.schedulePersist()
+        } else if (isError && job.attempt < this.maxRetries) {
+          const delay = Math.min(30_000, this.baseRetryDelayMs * 2 ** job.attempt)
+          const jitter = Math.floor(Math.random() * 250)
+          this.queue.push({
+            key: job.key,
+            address: job.address,
+            attempt: job.attempt + 1,
+            readyAt: Date.now() + delay + jitter,
+            resolve: job.resolve,
+          })
+          this.nextAllowedAt = Math.max(this.nextAllowedAt, Date.now() + delay / 4)
         } else {
           this.failed += 1
           job.resolve(null)

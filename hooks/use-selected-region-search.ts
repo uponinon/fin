@@ -18,11 +18,22 @@ async function resolveSelectedRegion(query: string): Promise<SelectedRegion> {
     throw new Error("NEXT_PUBLIC_KAKAO_APP_KEY가 설정되지 않았습니다.")
   }
 
+  const q = query.trim()
+  if (!q) throw new Error("지역을 입력하세요.")
+
+  try {
+    const res = await fetch(`/api/kakao/region?q=${encodeURIComponent(q)}`, { cache: "no-store" })
+    if (res.ok) {
+      const json = (await res.json()) as { region: SelectedRegion | null }
+      if (json?.region?.lawdCd && json.region.center) return json.region
+      throw new Error("지역을 찾지 못했습니다. 다른 키워드를 입력해보세요.")
+    }
+    if (res.status !== 501) throw new Error("지역 검색 서버 호출 실패")
+  } catch {
+  }
+
   const state = await loadKakaoMaps(KAKAO_APP_KEY)
   if (!state.ok) throw new Error(state.message)
-
-  const q = query.trim()
-  if (!q) throw new Error("검색어를 입력해 주세요.")
 
   const geocoder = new window.kakao.maps.services.Geocoder()
 
@@ -51,7 +62,7 @@ async function resolveSelectedRegion(query: string): Promise<SelectedRegion> {
       resolve({ lat: Number(first.y), lng: Number(first.x), placeName: String(first.place_name ?? q) })
     })
   })
-  if (!placeCoord) throw new Error("검색 결과가 없습니다. 도로명 주소 또는 지역명을 더 구체적으로 입력해 주세요.")
+  if (!placeCoord) throw new Error("지역을 찾지 못했습니다. 다른 키워드를 입력해보세요.")
 
   const regionCode = await new Promise<{ lawdCd: string; label: string } | null>((resolve) => {
     geocoder.coord2RegionCode(placeCoord.lng, placeCoord.lat, (results: any[], status: any) => {
@@ -66,7 +77,7 @@ async function resolveSelectedRegion(query: string): Promise<SelectedRegion> {
       resolve({ lawdCd: code.slice(0, 5), label })
     })
   })
-  if (!regionCode) throw new Error("지역 코드를 찾지 못했습니다. 다른 검색어로 시도해 주세요.")
+  if (!regionCode) throw new Error("지역 코드 조회에 실패했습니다.")
 
   return {
     query: q,
@@ -114,3 +125,4 @@ export function useSelectedRegionSearch() {
     search,
   }
 }
+

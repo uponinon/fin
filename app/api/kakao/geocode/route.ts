@@ -7,7 +7,7 @@ type LatLng = { lat: number; lng: number }
 const CACHE_TTL_OK_MS = 30 * 24 * 60 * 60 * 1000
 const CACHE_TTL_NULL_MS = 6 * 60 * 60 * 1000
 
-const cache = new Map<string, { expiresAt: number; value: LatLng | null }>()
+const memoryCache = new Map<string, { expiresAt: number; value: LatLng | null }>()
 const inFlight = new Map<string, Promise<LatLng | null>>()
 let nextAllowedAt = 0
 
@@ -27,6 +27,18 @@ function parseRetryAfterMs(header: string | null) {
   const secs = Number.parseInt(header, 10)
   if (Number.isFinite(secs) && secs > 0) return secs * 1000
   return 0
+}
+
+function getCachesDefault(): Cache | null {
+  try {
+    const maybeCaches = (globalThis as any).caches
+    const maybeDefault = maybeCaches?.default
+    if (maybeDefault && typeof maybeDefault.match === "function" && typeof maybeDefault.put === "function") {
+      return maybeDefault as Cache
+    }
+  } catch {
+  }
+  return null
 }
 
 async function geocodeViaKakaoRest(query: string, restApiKey: string): Promise<LatLng | null> {
@@ -70,22 +82,51 @@ export async function GET(req: Request) {
   const { searchParams } = new URL(req.url)
   const queryRaw = searchParams.get("query") ?? searchParams.get("q") ?? ""
   const query = normalizeQuery(queryRaw)
-  if (!query) return NextResponse.json({ message: "query가 필요합니다.", coord: null }, { status: 400 })
+  if (!query) return NextResponse.json({ message: "Missing query", coord: null }, { status: 400 })
 
   const restApiKey = process.env.KAKAO_REST_API_KEY
   if (!restApiKey) {
-    return NextResponse.json({ message: "KAKAO_REST_API_KEY가 설정되지 않았습니다.", coord: null }, { status: 501 })
+    return NextResponse.json({ message: "Missing KAKAO_REST_API_KEY", coord: null }, { status: 501 })
   }
 
-  const cached = cache.get(query)
+  const cacheStorage = getCachesDefault()
+  if (cacheStorage) {
+    try {
+      const cached = await cacheStorage.match(req)
+      if (cached) return cached
+    } catch {
+    }
+  }
+
+  const cached = memoryCache.get(query)
   if (cached && cached.expiresAt > Date.now()) {
-    return NextResponse.json({ coord: cached.value })
+    const res = NextResponse.json(
+      { coord: cached.value },
+      { headers: { "Cache-Control": "public, max-age=86400" } },
+    )
+    if (cacheStorage) {
+      try {
+        await cacheStorage.put(req, res.clone())
+      } catch {
+      }
+    }
+    return res
   }
 
   const existing = inFlight.get(query)
   if (existing) {
     const coord = await existing.catch(() => null)
-    return NextResponse.json({ coord })
+    const res = NextResponse.json(
+      { coord },
+      { headers: { "Cache-Control": "public, max-age=86400" } },
+    )
+    if (cacheStorage) {
+      try {
+        await cacheStorage.put(req, res.clone())
+      } catch {
+      }
+    }
+    return res
   }
 
   const task = geocodeViaKakaoRest(query, restApiKey)
@@ -93,8 +134,18 @@ export async function GET(req: Request) {
 
   try {
     const coord = await task
-    cache.set(query, { expiresAt: Date.now() + (coord ? CACHE_TTL_OK_MS : CACHE_TTL_NULL_MS), value: coord })
-    return NextResponse.json({ coord })
+    memoryCache.set(query, { expiresAt: Date.now() + (coord ? CACHE_TTL_OK_MS : CACHE_TTL_NULL_MS), value: coord })
+    const res = NextResponse.json(
+      { coord },
+      { headers: { "Cache-Control": coord ? "public, max-age=2592000" : "public, max-age=21600" } },
+    )
+    if (cacheStorage) {
+      try {
+        await cacheStorage.put(req, res.clone())
+      } catch {
+      }
+    }
+    return res
   } catch (err: any) {
     if (String(err?.message) === "rate_limited") {
       const retryAfterMs = Number(err?.retryAfterMs ?? 5000)

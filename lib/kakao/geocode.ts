@@ -65,6 +65,7 @@ export class KakaoGeocoderQueue {
   private readonly cache: Map<string, LatLng>
   private readonly memoryCache: Map<string, LatLng>
   private readonly negativeCacheUntil: Map<string, number> = new Map()
+  private readonly pendingResolversByKey: Map<string, Array<(v: LatLng | null) => void>> = new Map()
 
   private queue: Array<{
     key: string
@@ -127,9 +128,23 @@ export class KakaoGeocoderQueue {
     const blockedUntil = this.negativeCacheUntil.get(key) ?? 0
     if (blockedUntil > Date.now()) return Promise.resolve(null)
 
-    this.total += 1
     return new Promise<LatLng | null>((resolve) => {
-      this.queue.push({ key, address: key, attempt: 0, readyAt: Date.now(), resolve })
+      const existing = this.pendingResolversByKey.get(key)
+      if (existing) {
+        existing.push(resolve)
+        return
+      }
+
+      this.pendingResolversByKey.set(key, [resolve])
+      this.total += 1
+
+      const resolveAll = (value: LatLng | null) => {
+        const resolvers = this.pendingResolversByKey.get(key) ?? []
+        this.pendingResolversByKey.delete(key)
+        resolvers.forEach((r) => r(value))
+      }
+
+      this.queue.push({ key, address: key, attempt: 0, readyAt: Date.now(), resolve: resolveAll })
       this.pump()
     })
   }
@@ -231,4 +246,3 @@ export class KakaoGeocoderQueue {
     }, 500)
   }
 }
-

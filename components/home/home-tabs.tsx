@@ -2,6 +2,7 @@
 
 import dynamic from "next/dynamic"
 import { KakaoMap } from "@/components/map/kakao-map"
+import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import type { PriceStatistics, RealEstateTransaction, RegionPriceRange } from "@/lib/api/real-estate"
@@ -14,7 +15,7 @@ const PriceTrendChart = dynamic(() => import("@/components/charts/price-trend-ch
     <Card>
       <CardHeader>
         <CardTitle>가격 추이</CardTitle>
-        <CardDescription>차트를 불러오는 중...</CardDescription>
+        <CardDescription>차트를 불러오는 중..</CardDescription>
       </CardHeader>
     </Card>
   ),
@@ -26,7 +27,7 @@ const RegionComparison = dynamic(() => import("@/components/regions/region-compa
     <Card>
       <CardHeader>
         <CardTitle>지역 비교</CardTitle>
-        <CardDescription>차트를 불러오는 중...</CardDescription>
+        <CardDescription>차트를 불러오는 중..</CardDescription>
       </CardHeader>
     </Card>
   ),
@@ -38,7 +39,7 @@ const TransactionList = dynamic(() => import("@/components/transactions/transact
     <Card>
       <CardHeader>
         <CardTitle>거래 목록</CardTitle>
-        <CardDescription>목록을 불러오는 중...</CardDescription>
+        <CardDescription>목록을 불러오는 중..</CardDescription>
       </CardHeader>
     </Card>
   ),
@@ -69,6 +70,9 @@ type Props = {
   selectedPropertyLabel: string | null
   isPropertyTrendLoading: boolean
   selectedPropertyStatistics: PriceStatistics[]
+  propertyTrendMonths: number
+  onChangePropertyTrendMonths: (months: number) => void
+  onUseFilterPeriodForPropertyTrend: () => void
 
   errorMessage: string | null
 }
@@ -91,6 +95,9 @@ export function HomeTabs(props: Props) {
     selectedPropertyLabel,
     isPropertyTrendLoading,
     selectedPropertyStatistics,
+    propertyTrendMonths,
+    onChangePropertyTrendMonths,
+    onUseFilterPeriodForPropertyTrend,
     errorMessage,
   } = props
 
@@ -121,20 +128,20 @@ export function HomeTabs(props: Props) {
               <KakaoMap
                 data={priceFiltered}
                 center={selectedRegionCenter}
-                onMarkerClick={onSelectTransaction}
                 onViewportChange={onViewportChange}
                 onPositionsChange={onPositionsChange}
                 fitBoundsSignal={fitBoundsSignal}
                 autoFitBounds={true}
                 selectedId={selectedTransaction?.id}
                 selectedPosition={selectedPosition}
+                selectedTransaction={selectedTransaction}
               />
             </div>
             <div className="space-y-6">
               <Card>
                 <CardHeader>
                   <CardTitle>선택된 거래</CardTitle>
-                  <CardDescription>지도 마커 또는 목록을 클릭해 상세를 확인하세요.</CardDescription>
+                  <CardDescription>거래 목록에서 매물을 클릭하면 해당 위치만 지도에 표시됩니다.</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-3">
                   {selectedTransaction ? (
@@ -177,13 +184,57 @@ export function HomeTabs(props: Props) {
             <div className="space-y-4">
               <Card>
                 <CardHeader>
-                  <CardTitle>선택 매물 가격 추이 (최근 12개월)</CardTitle>
+                  <CardTitle>선택 매물 가격 추이</CardTitle>
                   <CardDescription>{selectedPropertyLabel ?? selectedTransaction.address}</CardDescription>
                 </CardHeader>
-                <CardContent className="text-sm text-muted-foreground">
-                  {isPropertyTrendLoading ? "불러오는 중..." : `데이터 ${selectedPropertyStatistics.length}개월`}
+                <CardContent className="space-y-3">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <Button
+                      type="button"
+                      variant={propertyTrendMonths === 3 ? "default" : "outline"}
+                      size="sm"
+                      onClick={() => onChangePropertyTrendMonths(3)}
+                      disabled={isPropertyTrendLoading}
+                    >
+                      3개월
+                    </Button>
+                    <Button
+                      type="button"
+                      variant={propertyTrendMonths === 6 ? "default" : "outline"}
+                      size="sm"
+                      onClick={() => onChangePropertyTrendMonths(6)}
+                      disabled={isPropertyTrendLoading}
+                    >
+                      6개월
+                    </Button>
+                    <Button
+                      type="button"
+                      variant={propertyTrendMonths === 12 ? "default" : "outline"}
+                      size="sm"
+                      onClick={() => onChangePropertyTrendMonths(12)}
+                      disabled={isPropertyTrendLoading}
+                    >
+                      12개월
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      size="sm"
+                      onClick={onUseFilterPeriodForPropertyTrend}
+                      disabled={isPropertyTrendLoading}
+                    >
+                      필터 기간
+                    </Button>
+                  </div>
+
+                  <div className="text-sm text-muted-foreground">
+                    {isPropertyTrendLoading
+                      ? "불러오는 중.."
+                      : `표시 범위: 최근 ${propertyTrendMonths}개월 (데이터 ${selectedPropertyStatistics.length}개 월)`}
+                  </div>
                 </CardContent>
               </Card>
+
               <PriceTrendChart data={selectedPropertyStatistics} />
             </div>
           ) : (

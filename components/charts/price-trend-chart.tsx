@@ -14,25 +14,29 @@ export function PriceTrendChart({ data }: PriceTrendChartProps) {
       <Card>
         <CardHeader>
           <CardTitle>가격 추이</CardTitle>
-          <CardDescription>최근 데이터가 없습니다.</CardDescription>
+          <CardDescription>표시할 데이터가 없습니다.</CardDescription>
         </CardHeader>
       </Card>
     )
   }
 
-  const chartData = data.map((stat) => ({
-    period: stat.period,
-    avgEok: Math.floor(stat.avgPrice / 10000),
-    maxEok: Math.floor(stat.maxPrice / 10000),
-    minEok: Math.floor(stat.minPrice / 10000),
-    count: stat.transactionCount,
-    changeRate: stat.changeRate,
-  }))
+  const nonEmpty = data.filter((d) => d.transactionCount > 0 && d.avgPrice > 0)
+  const latest = nonEmpty.length ? nonEmpty[nonEmpty.length - 1] : null
+  const previous = nonEmpty.length >= 2 ? nonEmpty[nonEmpty.length - 2] : null
 
-  const latest = data[data.length - 1]
-  const previous = data[data.length - 2]
+  const chartData = data.map((stat) => {
+    const has = stat.transactionCount > 0 && stat.avgPrice > 0
+    return {
+      period: stat.period,
+      avgEok: has ? Math.floor(stat.avgPrice / 10000) : null,
+      maxEok: has ? Math.floor(stat.maxPrice / 10000) : null,
+      minEok: has ? Math.floor(stat.minPrice / 10000) : null,
+      count: stat.transactionCount,
+      changeRate: stat.changeRate,
+    }
+  })
 
-  const biggestDrop = data.reduce<{ period: string; rate: number } | null>((acc, cur) => {
+  const biggestDrop = nonEmpty.reduce<{ period: string; rate: number } | null>((acc, cur) => {
     if (!Number.isFinite(cur.changeRate)) return acc
     if (cur.changeRate >= 0) return acc
     if (!acc || cur.changeRate < acc.rate) return { period: cur.period, rate: cur.changeRate }
@@ -43,32 +47,32 @@ export function PriceTrendChart({ data }: PriceTrendChartProps) {
     <Card>
       <CardHeader>
         <CardTitle>가격 추이 분석</CardTitle>
-        <CardDescription>최근 {data.length}개월간 평균/최고/최저 거래가 변동</CardDescription>
+        <CardDescription>최근 {data.length}개월(거래 없는 달 포함) 평균/최고/최저 거래가 변동</CardDescription>
       </CardHeader>
       <CardContent>
         <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-6">
           <div className="p-4 rounded-lg bg-muted">
             <div className="text-sm text-muted-foreground mb-1">평균 거래가</div>
-            <div className="text-2xl font-bold">{formatPrice(latest.avgPrice)}</div>
-            <div className={`text-sm mt-1 ${latest.changeRate >= 0 ? "text-success" : "text-destructive"}`}>
-              전월 대비 {formatChangeRate(latest.changeRate)}
+            <div className="text-2xl font-bold">{latest ? formatPrice(latest.avgPrice) : "-"}</div>
+            <div className={`text-sm mt-1 ${latest && latest.changeRate >= 0 ? "text-success" : "text-destructive"}`}>
+              전월 대비 {latest ? formatChangeRate(latest.changeRate) : "-"}
             </div>
           </div>
 
           <div className="p-4 rounded-lg bg-muted">
             <div className="text-sm text-muted-foreground mb-1">최고가</div>
-            <div className="text-2xl font-bold">{formatPrice(latest.maxPrice)}</div>
+            <div className="text-2xl font-bold">{latest ? formatPrice(latest.maxPrice) : "-"}</div>
           </div>
 
           <div className="p-4 rounded-lg bg-muted">
             <div className="text-sm text-muted-foreground mb-1">최저가</div>
-            <div className="text-2xl font-bold">{formatPrice(latest.minPrice)}</div>
+            <div className="text-2xl font-bold">{latest ? formatPrice(latest.minPrice) : "-"}</div>
           </div>
 
           <div className="p-4 rounded-lg bg-muted">
             <div className="text-sm text-muted-foreground mb-1">거래 건수</div>
-            <div className="text-2xl font-bold">{latest.transactionCount}</div>
-            {previous ? (
+            <div className="text-2xl font-bold">{latest ? latest.transactionCount : 0}</div>
+            {latest && previous ? (
               <div
                 className={`text-sm mt-1 ${
                   latest.transactionCount >= previous.transactionCount ? "text-success" : "text-destructive"
@@ -81,14 +85,14 @@ export function PriceTrendChart({ data }: PriceTrendChartProps) {
           </div>
 
           <div className="p-4 rounded-lg bg-muted">
-            <div className="text-sm text-muted-foreground mb-1">최근 폭락(최대)</div>
+            <div className="text-sm text-muted-foreground mb-1">최근 급락(최대)</div>
             {biggestDrop ? (
               <>
                 <div className="text-lg font-bold">{biggestDrop.period}</div>
                 <div className="text-sm mt-1 text-destructive">{formatChangeRate(biggestDrop.rate)}</div>
               </>
             ) : (
-              <div className="text-sm text-muted-foreground">하락 구간 없음</div>
+              <div className="text-sm text-muted-foreground">급락 구간 없음</div>
             )}
           </div>
         </div>
@@ -122,15 +126,42 @@ export function PriceTrendChart({ data }: PriceTrendChartProps) {
                 border: "1px solid hsl(var(--border))",
                 borderRadius: "8px",
               }}
-              formatter={(value: any, name: string) => {
+              formatter={(value: any, name: string, payload: any) => {
                 if (name === "거래 건수") return [`${value}건`, name]
+                if (value == null) return ["-", name]
+                const count = payload?.payload?.count ?? 0
+                if (!count) return ["-", name]
                 return [`${value}억`, name]
               }}
             />
             <Legend />
-            <Area type="monotone" dataKey="maxEok" name="최고가" stroke="hsl(var(--destructive))" fill="url(#colorMax)" strokeWidth={2} />
-            <Area type="monotone" dataKey="avgEok" name="평균가" stroke="hsl(var(--primary))" fill="url(#colorAvg)" strokeWidth={3} />
-            <Area type="monotone" dataKey="minEok" name="최저가" stroke="hsl(var(--success))" fill="url(#colorMin)" strokeWidth={2} />
+            <Area
+              type="monotone"
+              dataKey="maxEok"
+              name="최고가"
+              stroke="hsl(var(--destructive))"
+              fill="url(#colorMax)"
+              strokeWidth={2}
+              connectNulls={false}
+            />
+            <Area
+              type="monotone"
+              dataKey="avgEok"
+              name="평균가"
+              stroke="hsl(var(--primary))"
+              fill="url(#colorAvg)"
+              strokeWidth={3}
+              connectNulls={false}
+            />
+            <Area
+              type="monotone"
+              dataKey="minEok"
+              name="최저가"
+              stroke="hsl(var(--success))"
+              fill="url(#colorMin)"
+              strokeWidth={2}
+              connectNulls={false}
+            />
           </AreaChart>
         </ResponsiveContainer>
       </CardContent>

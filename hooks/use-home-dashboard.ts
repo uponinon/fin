@@ -16,6 +16,7 @@ export function useHomeDashboard() {
   const [mapBounds, setMapBounds] = useState<MapBounds>(null)
   const [positionsById, setPositionsById] = useState<Record<string, { lat: number; lng: number }>>({})
   const [fitBoundsSignal, setFitBoundsSignal] = useState(0)
+  const [propertyTrendMonths, setPropertyTrendMonths] = useState(12)
 
   const regionSearch = useSelectedRegionSearch()
   const period = usePeriodFilter(3)
@@ -32,9 +33,14 @@ export function useHomeDashboard() {
     if (!selected.lastUserSelectedIdRef.current) return
     if (selected.selectedTransaction.id !== selected.lastUserSelectedIdRef.current) return
     if (regionSearch.selectedRegion?.lawdCd) {
-      void propertyTrend.loadPropertyTrend(regionSearch.selectedRegion.lawdCd, selected.selectedTransaction)
+      void propertyTrend.loadPropertyTrend(regionSearch.selectedRegion.lawdCd, selected.selectedTransaction, propertyTrendMonths)
     }
-  }, [selected.selectedTransaction?.id, regionSearch.selectedRegion?.lawdCd, propertyTrend.loadPropertyTrend])
+  }, [
+    selected.selectedTransaction?.id,
+    regionSearch.selectedRegion?.lawdCd,
+    propertyTrend.loadPropertyTrend,
+    propertyTrendMonths,
+  ])
 
   const handleSearch = useCallback(async () => {
     market.setErrorMessage(null)
@@ -66,6 +72,22 @@ export function useHomeDashboard() {
     [selected],
   )
 
+  const handleChangePropertyTrendMonths = useCallback(
+    (months: number) => {
+      const safeMonths = Number.isFinite(months) ? Math.max(1, Math.min(12, Math.floor(months))) : 12
+      setPropertyTrendMonths(safeMonths)
+      if (regionSearch.selectedRegion?.lawdCd && selected.selectedTransaction) {
+        void propertyTrend.loadPropertyTrend(regionSearch.selectedRegion.lawdCd, selected.selectedTransaction, safeMonths)
+      }
+    },
+    [propertyTrend.loadPropertyTrend, regionSearch.selectedRegion?.lawdCd, selected.selectedTransaction],
+  )
+
+  const handleUseFilterPeriodForPropertyTrend = useCallback(() => {
+    const months = Math.max(1, Math.min(12, period.dealYmds.length || 12))
+    handleChangePropertyTrendMonths(months)
+  }, [handleChangePropertyTrendMonths, period.dealYmds.length])
+
   return {
     activeTab,
     setActiveTab,
@@ -82,6 +104,9 @@ export function useHomeDashboard() {
     regionData,
     selected,
     propertyTrend,
+    propertyTrendMonths,
+    handleChangePropertyTrendMonths,
+    handleUseFilterPeriodForPropertyTrend,
     handleSearch,
     handleRefresh,
     handleGoHome,

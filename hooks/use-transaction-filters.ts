@@ -9,7 +9,7 @@ export function useTransactionFilters(
   positionsById: Record<string, { lat: number; lng: number }>,
 ) {
   const [priceRange, setPriceRange] = useState<[number, number]>([0, 0])
-  const [showOnlyInViewport, setShowOnlyInViewport] = useState(true)
+  const [showOnlyInViewport, setShowOnlyInViewport] = useState(false)
 
   const allPrices = useMemo(() => transactions.map((t) => t.price).filter((p) => Number.isFinite(p)), [transactions])
   const computedPriceMin = useMemo(() => (allPrices.length ? Math.min(...allPrices) : 0), [allPrices])
@@ -34,7 +34,7 @@ export function useTransactionFilters(
     if (!mapBounds) return priceFiltered
     return priceFiltered.filter((t) => {
       const pos = positionsById[t.id]
-      if (!pos) return false
+      if (!pos) return true
       return (
         pos.lat >= mapBounds.sw.lat &&
         pos.lat <= mapBounds.ne.lat &&
@@ -55,4 +55,3 @@ export function useTransactionFilters(
     viewportFiltered,
   }
 }
-

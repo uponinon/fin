@@ -81,6 +81,9 @@ export default function HomePage() {
             selectedPropertyLabel={dashboard.propertyTrend.selectedPropertyLabel}
             isPropertyTrendLoading={dashboard.propertyTrend.isPropertyTrendLoading}
             selectedPropertyStatistics={dashboard.propertyTrend.selectedPropertyStatistics}
+            propertyTrendMonths={dashboard.propertyTrendMonths}
+            onChangePropertyTrendMonths={dashboard.handleChangePropertyTrendMonths}
+            onUseFilterPeriodForPropertyTrend={dashboard.handleUseFilterPeriodForPropertyTrend}
             errorMessage={dashboard.market.errorMessage}
           />
         )}

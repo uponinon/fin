@@ -18,24 +18,32 @@ export function usePropertyTrend() {
   const [selectedPropertyLabel, setSelectedPropertyLabel] = useState<string | null>(null)
   const [isPropertyTrendLoading, setIsPropertyTrendLoading] = useState(false)
   const abortRef = useRef<AbortController | null>(null)
+  const lastLawdCdRef = useRef<string | null>(null)
+  const lastBaseRef = useRef<RealEstateTransaction | null>(null)
 
-  const loadPropertyTrend = useCallback(async (lawdCd: string, base: RealEstateTransaction) => {
+  const loadPropertyTrend = useCallback(async (lawdCd: string, base: RealEstateTransaction, months = 12) => {
     if (abortRef.current) abortRef.current.abort()
     const aborter = new AbortController()
     abortRef.current = aborter
 
+    const safeMonths = Number.isFinite(months) ? Math.max(1, Math.min(12, Math.floor(months))) : 12
+
     setIsPropertyTrendLoading(true)
     setSelectedPropertyStatistics([])
     setSelectedPropertyLabel(base.address || null)
+    lastLawdCdRef.current = lawdCd
+    lastBaseRef.current = base
 
     try {
-      const dealYmds = computeRecentDealYmds(12).reverse()
+      const dealYmds = computeRecentDealYmds(safeMonths).reverse()
       const keys = getPropertyMatchKeys(base)
 
       const monthTxs = await Promise.all(dealYmds.map((ymd) => fetchRealEstateData(lawdCd, ymd)))
       if (aborter.signal.aborted) return
 
       const results: PriceStatistics[] = []
+      let lastNonEmptyAvg: number | null = null
+
       for (let i = 0; i < dealYmds.length; i++) {
         const ymd = dealYmds[i]
         const period = `${ymd.slice(0, 4)}-${ymd.slice(4, 6)}`
@@ -45,12 +53,19 @@ export function usePropertyTrend() {
           return k.full === keys.full || k.loose === keys.loose
         })
         const prices = matches.map((m) => m.price).filter((p) => Number.isFinite(p) && p > 0)
-        if (!prices.length) continue
+
+        if (!prices.length) {
+          results.push({ period, avgPrice: 0, maxPrice: 0, minPrice: 0, transactionCount: 0, changeRate: Number.NaN })
+          continue
+        }
+
         const avgPrice = Math.floor(prices.reduce((a, b) => a + b, 0) / prices.length)
         const maxPrice = Math.max(...prices)
         const minPrice = Math.min(...prices)
-        const prev = results[results.length - 1]
-        const changeRate = prev ? ((avgPrice - prev.avgPrice) / prev.avgPrice) * 100 : 0
+        const changeRate =
+          lastNonEmptyAvg && lastNonEmptyAvg > 0 ? ((avgPrice - lastNonEmptyAvg) / lastNonEmptyAvg) * 100 : 0
+        lastNonEmptyAvg = avgPrice
+
         results.push({ period, avgPrice, maxPrice, minPrice, transactionCount: prices.length, changeRate })
       }
 
@@ -62,11 +77,22 @@ export function usePropertyTrend() {
     }
   }, [])
 
+  const reload = useCallback(
+    async (months = 12) => {
+      const lawdCd = lastLawdCdRef.current
+      const base = lastBaseRef.current
+      if (!lawdCd || !base) return
+      await loadPropertyTrend(lawdCd, base, months)
+    },
+    [loadPropertyTrend],
+  )
+
   return {
     selectedPropertyStatistics,
     selectedPropertyLabel,
     isPropertyTrendLoading,
     loadPropertyTrend,
+    reload,
   }
 }
 

@@ -6,6 +6,12 @@ export const runtime = "edge"
 const CACHE_TTL_MS = 10 * 60 * 1000
 const cache = new Map<string, { expiresAt: number; items: any[] }>()
 
+function normalizeServiceKey(serviceKey: string) {
+  const key = serviceKey.trim()
+  const looksEncoded = /%[0-9A-Fa-f]{2}/.test(key)
+  return looksEncoded ? key : encodeURIComponent(key)
+}
+
 // data.go.kr(국토교통부 실거래가) 연동은 서버에서 처리하는 것을 권장합니다.
 //
 // TODO:
@@ -79,7 +85,7 @@ export async function GET(req: Request) {
       pageNo: "1",
     })
 
-    const url = `${endpoint}?serviceKey=${serviceKey}&${params.toString()}`
+    const url = `${endpoint}?serviceKey=${normalizeServiceKey(serviceKey)}&${params.toString()}`
     const res = await fetch(url, { cache: "no-store" })
     const xml = await res.text()
     if (!res.ok) {

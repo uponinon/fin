@@ -6,6 +6,12 @@ export const runtime = "edge"
 const CACHE_TTL_MS = 30 * 60 * 1000
 const cache = new Map<string, { expiresAt: number; items: Array<{ period: string; avgPrice: number; maxPrice: number; minPrice: number; transactionCount: number; changeRate: number }> }>()
 
+function normalizeServiceKey(serviceKey: string) {
+  const key = serviceKey.trim()
+  const looksEncoded = /%[0-9A-Fa-f]{2}/.test(key)
+  return looksEncoded ? key : encodeURIComponent(key)
+}
+
 function toDealYmd(date: Date) {
   const year = date.getFullYear()
   const month = String(date.getMonth() + 1).padStart(2, "0")
@@ -52,7 +58,7 @@ async function fetchMonth(lawdCd: string, dealYmd: string, serviceKey: string) {
     numOfRows: "100",
     pageNo: "1",
   })
-  const url = `${endpoint}?serviceKey=${serviceKey}&${params.toString()}`
+  const url = `${endpoint}?serviceKey=${normalizeServiceKey(serviceKey)}&${params.toString()}`
   const res = await fetch(url, { cache: "no-store" })
   const xml = await res.text()
   if (!res.ok) throw new Error(`data.go.kr 호출 실패: ${res.status}`)

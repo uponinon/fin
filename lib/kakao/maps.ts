@@ -62,6 +62,7 @@ export function loadKakaoMaps(appKey: string): Promise<KakaoMapsLoadState> {
         }),
     )
     .catch((err: unknown) => {
+      kakaoMapsLoadPromise = null
       const message = err instanceof Error ? err.message : "Kakao Maps SDK 로드 실패"
       return { ok: false, reason: "load_failed", message }
     })

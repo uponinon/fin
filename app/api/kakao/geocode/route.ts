@@ -11,6 +11,21 @@ const memoryCache = new Map<string, { expiresAt: number; value: LatLng | null }>
 const inFlight = new Map<string, Promise<LatLng | null>>()
 let nextAllowedAt = 0
 const MIN_INTERVAL_MS = 1200
+let limiter: Promise<void> = Promise.resolve()
+
+async function runWithLimiter<T>(fn: () => Promise<T>): Promise<T> {
+  const previous = limiter
+  let release: () => void = () => {}
+  limiter = new Promise<void>((resolve) => {
+    release = resolve
+  })
+  await previous
+  try {
+    return await fn()
+  } finally {
+    release()
+  }
+}
 
 function normalizeQuery(query: string) {
   return query
@@ -43,40 +58,42 @@ function getCachesDefault(): Cache | null {
 }
 
 async function geocodeViaKakaoRest(query: string, restApiKey: string): Promise<LatLng | null> {
-  const waitMs = Math.max(0, nextAllowedAt - Date.now())
-  if (waitMs > 0) await sleep(waitMs)
-  nextAllowedAt = Date.now() + MIN_INTERVAL_MS
+  return await runWithLimiter(async () => {
+    const waitMs = Math.max(0, nextAllowedAt - Date.now())
+    if (waitMs > 0) await sleep(waitMs)
+    nextAllowedAt = Date.now() + MIN_INTERVAL_MS
 
-  const url = new URL("https://dapi.kakao.com/v2/local/search/address.json")
-  url.searchParams.set("query", query)
-  url.searchParams.set("page", "1")
-  url.searchParams.set("size", "1")
+    const url = new URL("https://dapi.kakao.com/v2/local/search/address.json")
+    url.searchParams.set("query", query)
+    url.searchParams.set("page", "1")
+    url.searchParams.set("size", "1")
 
-  const res = await fetch(url.toString(), {
-    headers: { Authorization: `KakaoAK ${restApiKey.trim()}` },
-    cache: "no-store",
+    const res = await fetch(url.toString(), {
+      headers: { Authorization: `KakaoAK ${restApiKey.trim()}` },
+      cache: "no-store",
+    })
+
+    if (res.status === 429) {
+      const retryAfterMs = Math.max(5000, parseRetryAfterMs(res.headers.get("Retry-After")))
+      nextAllowedAt = Date.now() + retryAfterMs
+      const err = new Error("rate_limited")
+      ;(err as any).retryAfterMs = retryAfterMs
+      throw err
+    }
+
+    if (!res.ok) {
+      const text = await res.text().catch(() => "")
+      throw new Error(`kakao_rest_failed:${res.status}:${text.slice(0, 120)}`)
+    }
+
+    const json = (await res.json()) as any
+    const first = json?.documents?.[0]
+    const lat = first?.y ? Number.parseFloat(first.y) : NaN
+    const lng = first?.x ? Number.parseFloat(first.x) : NaN
+    if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null
+    if (Math.abs(lat) < 0.0001 || Math.abs(lng) < 0.0001) return null
+    return { lat, lng }
   })
-
-  if (res.status === 429) {
-    const retryAfterMs = Math.max(5000, parseRetryAfterMs(res.headers.get("Retry-After")))
-    nextAllowedAt = Date.now() + retryAfterMs
-    const err = new Error("rate_limited")
-    ;(err as any).retryAfterMs = retryAfterMs
-    throw err
-  }
-
-  if (!res.ok) {
-    const text = await res.text().catch(() => "")
-    throw new Error(`kakao_rest_failed:${res.status}:${text.slice(0, 120)}`)
-  }
-
-  const json = (await res.json()) as any
-  const first = json?.documents?.[0]
-  const lat = first?.y ? Number.parseFloat(first.y) : NaN
-  const lng = first?.x ? Number.parseFloat(first.x) : NaN
-  if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null
-  if (Math.abs(lat) < 0.0001 || Math.abs(lng) < 0.0001) return null
-  return { lat, lng }
 }
 
 export async function GET(req: Request) {

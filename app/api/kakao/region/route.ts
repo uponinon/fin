@@ -16,6 +16,21 @@ const memoryCache = new Map<string, { expiresAt: number; value: SelectedRegion |
 const inFlight = new Map<string, Promise<SelectedRegion | null>>()
 let nextAllowedAt = 0
 const MIN_INTERVAL_MS = 1200
+let limiter: Promise<void> = Promise.resolve()
+
+async function runWithLimiter<T>(fn: () => Promise<T>): Promise<T> {
+  const previous = limiter
+  let release: () => void = () => {}
+  limiter = new Promise<void>((resolve) => {
+    release = resolve
+  })
+  await previous
+  try {
+    return await fn()
+  } finally {
+    release()
+  }
+}
 
 function normalizeQuery(query: string) {
   return query
@@ -48,29 +63,31 @@ function getCachesDefault(): Cache | null {
 }
 
 async function kakaoFetchJson(url: string, restApiKey: string) {
-  const waitMs = Math.max(0, nextAllowedAt - Date.now())
-  if (waitMs > 0) await sleep(waitMs)
-  nextAllowedAt = Date.now() + MIN_INTERVAL_MS
+  return await runWithLimiter(async () => {
+    const waitMs = Math.max(0, nextAllowedAt - Date.now())
+    if (waitMs > 0) await sleep(waitMs)
+    nextAllowedAt = Date.now() + MIN_INTERVAL_MS
 
-  const res = await fetch(url, {
-    headers: { Authorization: `KakaoAK ${restApiKey.trim()}` },
-    cache: "no-store",
+    const res = await fetch(url, {
+      headers: { Authorization: `KakaoAK ${restApiKey.trim()}` },
+      cache: "no-store",
+    })
+
+    if (res.status === 429) {
+      const retryAfterMs = Math.max(5000, parseRetryAfterMs(res.headers.get("Retry-After")))
+      nextAllowedAt = Date.now() + retryAfterMs
+      const err = new Error("rate_limited")
+      ;(err as any).retryAfterMs = retryAfterMs
+      throw err
+    }
+
+    if (!res.ok) {
+      const text = await res.text().catch(() => "")
+      throw new Error(`kakao_rest_failed:${res.status}:${text.slice(0, 120)}`)
+    }
+
+    return (await res.json()) as any
   })
-
-  if (res.status === 429) {
-    const retryAfterMs = Math.max(5000, parseRetryAfterMs(res.headers.get("Retry-After")))
-    nextAllowedAt = Date.now() + retryAfterMs
-    const err = new Error("rate_limited")
-    ;(err as any).retryAfterMs = retryAfterMs
-    throw err
-  }
-
-  if (!res.ok) {
-    const text = await res.text().catch(() => "")
-    throw new Error(`kakao_rest_failed:${res.status}:${text.slice(0, 120)}`)
-  }
-
-  return (await res.json()) as any
 }
 
 function parseCoord(doc: any) {

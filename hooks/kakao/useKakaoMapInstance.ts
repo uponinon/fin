@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useRef } from "react"
+import { useEffect, useRef, useState } from "react"
 
 type MapBounds = { sw: { lat: number; lng: number }; ne: { lat: number; lng: number } }
 
@@ -9,6 +9,7 @@ export function useKakaoMapInstance(
   mapElementRef: React.RefObject<HTMLDivElement | null>,
   onViewportChange?: (bounds: MapBounds) => void,
 ) {
+  const [map, setMap] = useState<any>(null)
   const mapRef = useRef<any>(null)
   const userInteractedRef = useRef(false)
   const viewportNotifyTimerRef = useRef<any>(null)
@@ -24,17 +25,18 @@ export function useKakaoMapInstance(
     if (!mapElementRef.current) return
     if (mapRef.current) return
 
-    const map = new (window as any).kakao.maps.Map(mapElementRef.current, {
+    const instance = new (window as any).kakao.maps.Map(mapElementRef.current, {
       center: new (window as any).kakao.maps.LatLng(37.5665, 126.978),
       level: 7,
       draggable: true,
       scrollwheel: true,
       disableDoubleClick: false,
     })
-    mapRef.current = map
+    mapRef.current = instance
+    setMap(instance)
 
     const zoomControl = new (window as any).kakao.maps.ZoomControl()
-    map.addControl(zoomControl, (window as any).kakao.maps.ControlPosition.RIGHT)
+    instance.addControl(zoomControl, (window as any).kakao.maps.ControlPosition.RIGHT)
 
     try {
       const dragstart = () => {
@@ -50,7 +52,7 @@ export function useKakaoMapInstance(
         viewportNotifyTimerRef.current = setTimeout(() => {
           viewportNotifyTimerRef.current = null
           try {
-            const b = map.getBounds()
+            const b = instance.getBounds()
             const sw = b.getSouthWest()
             const ne = b.getNorthEast()
             cb({ sw: { lat: sw.getLat(), lng: sw.getLng() }, ne: { lat: ne.getLat(), lng: ne.getLng() } })
@@ -60,18 +62,18 @@ export function useKakaoMapInstance(
       }
 
       mapEventHandlersRef.current = { dragstart, zoomstart, idle }
-      ;(window as any).kakao.maps.event.addListener(map, "dragstart", dragstart)
-      ;(window as any).kakao.maps.event.addListener(map, "zoom_start", zoomstart)
-      ;(window as any).kakao.maps.event.addListener(map, "idle", idle)
+      ;(window as any).kakao.maps.event.addListener(instance, "dragstart", dragstart)
+      ;(window as any).kakao.maps.event.addListener(instance, "zoom_start", zoomstart)
+      ;(window as any).kakao.maps.event.addListener(instance, "idle", idle)
     } catch {
     }
 
     return () => {
       try {
         const h = mapEventHandlersRef.current
-        if (h?.dragstart) (window as any).kakao.maps.event.removeListener(map, "dragstart", h.dragstart)
-        if (h?.zoomstart) (window as any).kakao.maps.event.removeListener(map, "zoom_start", h.zoomstart)
-        if (h?.idle) (window as any).kakao.maps.event.removeListener(map, "idle", h.idle)
+        if (h?.dragstart) (window as any).kakao.maps.event.removeListener(instance, "dragstart", h.dragstart)
+        if (h?.zoomstart) (window as any).kakao.maps.event.removeListener(instance, "zoom_start", h.zoomstart)
+        if (h?.idle) (window as any).kakao.maps.event.removeListener(instance, "idle", h.idle)
         mapEventHandlersRef.current = null
       } catch {
       }
@@ -82,5 +84,6 @@ export function useKakaoMapInstance(
     }
   }, [enabled, mapElementRef])
 
-  return { mapRef, userInteractedRef }
+  return { map, mapRef, userInteractedRef }
 }
+

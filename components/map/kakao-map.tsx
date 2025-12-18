@@ -67,13 +67,14 @@ export function KakaoMap({
   const { phase, geocodeQueueRef, sdkDebug } = useKakaoMapsSdk()
 
   const mapEnabled = phase.phase === "map_ready"
-  const { mapRef, userInteractedRef } = useKakaoMapInstance(mapEnabled, mapElementRef, onViewportChange)
+  const { map, userInteractedRef } = useKakaoMapInstance(mapEnabled, mapElementRef, onViewportChange)
 
   const [selectedCoord, setSelectedCoord] = useState<{ lat: number; lng: number } | undefined>(undefined)
   const lastRequestedIdRef = useRef<string | null>(null)
 
   useEffect(() => {
     if (!mapEnabled) return
+    if (!map) return
     if (!selectedId) {
       setSelectedCoord(undefined)
       lastRequestedIdRef.current = null
@@ -115,6 +116,7 @@ export function KakaoMap({
     }
   }, [
     mapEnabled,
+    map,
     selectedId,
     selectedPosition?.lat,
     selectedPosition?.lng,
@@ -125,7 +127,6 @@ export function KakaoMap({
 
   useEffect(() => {
     if (!mapEnabled) return
-    const map = mapRef.current
     if (!map) return
     if (!center) return
     userInteractedRef.current = false
@@ -133,12 +134,11 @@ export function KakaoMap({
       map.setCenter(new window.kakao.maps.LatLng(center.lat, center.lng))
     } catch {
     }
-  }, [mapEnabled, mapRef, userInteractedRef, center?.lat, center?.lng])
+  }, [mapEnabled, map, userInteractedRef, center?.lat, center?.lng])
 
   useEffect(() => {
     if (!mapEnabled) return
     if (!fitBoundsSignal) return
-    const map = mapRef.current
     if (!map) return
     if (!center) return
     userInteractedRef.current = false
@@ -147,9 +147,9 @@ export function KakaoMap({
       if (autoFitBounds) map.setLevel(6)
     } catch {
     }
-  }, [mapEnabled, fitBoundsSignal, mapRef, userInteractedRef, center?.lat, center?.lng, autoFitBounds])
+  }, [mapEnabled, fitBoundsSignal, map, userInteractedRef, center?.lat, center?.lng, autoFitBounds])
 
-  useKakaoSelectedMarker(mapEnabled, mapRef.current, selectedId, selectedCoord)
+  useKakaoSelectedMarker(mapEnabled, map, selectedId, selectedCoord)
 
   const legend = useMemo(
     () => [
@@ -252,4 +252,3 @@ export function KakaoMap({
     </div>
   )
 }
-

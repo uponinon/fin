@@ -43,6 +43,10 @@ export function PriceTrendChart({ data }: PriceTrendChartProps) {
     return acc
   }, null)
 
+  const strokeAvg = "#1d4ed8"
+  const strokeMax = "#dc2626"
+  const strokeMin = "#16a34a"
+
   return (
     <Card>
       <CardHeader>
@@ -101,16 +105,16 @@ export function PriceTrendChart({ data }: PriceTrendChartProps) {
           <AreaChart data={chartData}>
             <defs>
               <linearGradient id="colorAvg" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="5%" stopColor="hsl(var(--primary))" stopOpacity={0.3} />
-                <stop offset="95%" stopColor="hsl(var(--primary))" stopOpacity={0} />
+                <stop offset="5%" stopColor={strokeAvg} stopOpacity={0.25} />
+                <stop offset="95%" stopColor={strokeAvg} stopOpacity={0} />
               </linearGradient>
               <linearGradient id="colorMax" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="5%" stopColor="hsl(var(--destructive))" stopOpacity={0.3} />
-                <stop offset="95%" stopColor="hsl(var(--destructive))" stopOpacity={0} />
+                <stop offset="5%" stopColor={strokeMax} stopOpacity={0.18} />
+                <stop offset="95%" stopColor={strokeMax} stopOpacity={0} />
               </linearGradient>
               <linearGradient id="colorMin" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="5%" stopColor="hsl(var(--success))" stopOpacity={0.3} />
-                <stop offset="95%" stopColor="hsl(var(--success))" stopOpacity={0} />
+                <stop offset="5%" stopColor={strokeMin} stopOpacity={0.18} />
+                <stop offset="95%" stopColor={strokeMin} stopOpacity={0} />
               </linearGradient>
             </defs>
             <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
@@ -139,28 +143,34 @@ export function PriceTrendChart({ data }: PriceTrendChartProps) {
               type="monotone"
               dataKey="maxEok"
               name="최고가"
-              stroke="hsl(var(--destructive))"
+              stroke={strokeMax}
               fill="url(#colorMax)"
               strokeWidth={2}
               connectNulls={false}
+              dot={{ r: 2 }}
+              activeDot={{ r: 4 }}
             />
             <Area
               type="monotone"
               dataKey="avgEok"
               name="평균가"
-              stroke="hsl(var(--primary))"
+              stroke={strokeAvg}
               fill="url(#colorAvg)"
               strokeWidth={3}
               connectNulls={false}
+              dot={{ r: 3 }}
+              activeDot={{ r: 5 }}
             />
             <Area
               type="monotone"
               dataKey="minEok"
               name="최저가"
-              stroke="hsl(var(--success))"
+              stroke={strokeMin}
               fill="url(#colorMin)"
               strokeWidth={2}
               connectNulls={false}
+              dot={{ r: 2 }}
+              activeDot={{ r: 4 }}
             />
           </AreaChart>
         </ResponsiveContainer>
@@ -168,4 +178,3 @@ export function PriceTrendChart({ data }: PriceTrendChartProps) {
     </Card>
   )
 }
-

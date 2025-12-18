@@ -1,6 +1,7 @@
 "use client"
 
 import dynamic from "next/dynamic"
+import { useEffect, useState } from "react"
 import { KakaoMap } from "@/components/map/kakao-map"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -101,6 +102,12 @@ export function HomeTabs(props: Props) {
     errorMessage,
   } = props
 
+  const [trendView, setTrendView] = useState<"property" | "region">("property")
+
+  useEffect(() => {
+    if (!selectedTransaction) setTrendView("region")
+  }, [selectedTransaction])
+
   return (
     <Tabs value={activeTab} onValueChange={(v) => onChangeTab(v as any)} className="space-y-6">
       <TabsList className="grid w-full grid-cols-4 lg:w-auto lg:inline-grid">
@@ -191,6 +198,25 @@ export function HomeTabs(props: Props) {
                   <div className="flex flex-wrap items-center gap-2">
                     <Button
                       type="button"
+                      variant={trendView === "property" ? "default" : "outline"}
+                      size="sm"
+                      onClick={() => setTrendView("property")}
+                    >
+                      선택 매물
+                    </Button>
+                    <Button
+                      type="button"
+                      variant={trendView === "region" ? "default" : "outline"}
+                      size="sm"
+                      onClick={() => setTrendView("region")}
+                    >
+                      지역 전체
+                    </Button>
+                  </div>
+
+                  <div className="flex flex-wrap items-center gap-2">
+                    <Button
+                      type="button"
                       variant={propertyTrendMonths === 3 ? "default" : "outline"}
                       size="sm"
                       onClick={() => onChangePropertyTrendMonths(3)}
@@ -235,7 +261,11 @@ export function HomeTabs(props: Props) {
                 </CardContent>
               </Card>
 
-              <PriceTrendChart data={selectedPropertyStatistics} />
+              {trendView === "property" ? (
+                <PriceTrendChart data={selectedPropertyStatistics} />
+              ) : (
+                <PriceTrendChart data={statistics} />
+              )}
             </div>
           ) : (
             <PriceTrendChart data={statistics} />
@@ -258,4 +288,3 @@ export function HomeTabs(props: Props) {
     </Tabs>
   )
 }
-

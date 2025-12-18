@@ -75,6 +75,8 @@ Cloudflare Pages의 `@cloudflare/next-on-pages`는 `next >= 14.3`를 요구합�
 
 Cloudflare가 `wrangler.toml`을 읽는 모드에서 `Output directory ".vercel/output/static" not found`가 나오면, 빌드 명령이 `next build`만 실행되고 `@cloudflare/next-on-pages`가 실행되지 않은 경우입니다. 이 저장소의 `wrangler.toml`에는 이를 방지하기 위해 `[build].command = "npm run pages:build"`를 설정해 두었습니다.
 
+참고: Pages 프로젝트에서 `wrangler.toml`에 `[build]` 섹션을 넣으면 Cloudflare 쪽 검증에서 거부될 수 있습니다. 빌드 명령은 Pages 대시보드의 Build command에서 `npm run pages:build`로 설정하세요.
+
 ## 트러블슈팅
 
 - 지도가 로드되지 않음: Kakao Developers에 배포 도메인(또는 로컬 도메인)이 등록되어 있는지 확인

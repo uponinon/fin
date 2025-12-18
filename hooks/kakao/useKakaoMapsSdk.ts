@@ -77,7 +77,12 @@ export function useKakaoMapsSdk() {
           })
         }
 
-        geocodeQueueRef.current = new KakaoGeocoderQueue(geocodeFn, { concurrency: 1, minDelayMs: 200, maxRetries: 5, baseRetryDelayMs: 1000 })
+        geocodeQueueRef.current = new KakaoGeocoderQueue(geocodeFn, {
+          concurrency: 1,
+          minDelayMs: 1200,
+          maxRetries: 4,
+          baseRetryDelayMs: 2000,
+        })
       } catch {
         geocodeQueueRef.current = null
       }

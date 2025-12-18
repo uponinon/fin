@@ -21,7 +21,7 @@ function geocodeQueryFromTransaction(t: RealEstateTransaction) {
   return `${withoutCommaPrefix} ${jibun}`.trim()
 }
 
-const MAX_GEOCODE_ADDRESSES_PER_LOAD = 12
+const MAX_GEOCODE_ADDRESSES_PER_LOAD = 6
 
 export function useKakaoTransactionOverlays(options: {
   enabled: boolean

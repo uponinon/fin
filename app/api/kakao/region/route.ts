@@ -15,6 +15,7 @@ const CACHE_TTL_FAIL_MS = 10 * 60 * 1000
 const memoryCache = new Map<string, { expiresAt: number; value: SelectedRegion | null }>()
 const inFlight = new Map<string, Promise<SelectedRegion | null>>()
 let nextAllowedAt = 0
+const MIN_INTERVAL_MS = 1200
 
 function normalizeQuery(query: string) {
   return query
@@ -49,7 +50,7 @@ function getCachesDefault(): Cache | null {
 async function kakaoFetchJson(url: string, restApiKey: string) {
   const waitMs = Math.max(0, nextAllowedAt - Date.now())
   if (waitMs > 0) await sleep(waitMs)
-  nextAllowedAt = Date.now() + 250
+  nextAllowedAt = Date.now() + MIN_INTERVAL_MS
 
   const res = await fetch(url, {
     headers: { Authorization: `KakaoAK ${restApiKey.trim()}` },
@@ -214,4 +215,3 @@ export async function GET(req: Request) {
     inFlight.delete(query)
   }
 }
-

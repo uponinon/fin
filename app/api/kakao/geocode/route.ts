@@ -10,6 +10,7 @@ const CACHE_TTL_NULL_MS = 6 * 60 * 60 * 1000
 const memoryCache = new Map<string, { expiresAt: number; value: LatLng | null }>()
 const inFlight = new Map<string, Promise<LatLng | null>>()
 let nextAllowedAt = 0
+const MIN_INTERVAL_MS = 1200
 
 function normalizeQuery(query: string) {
   return query
@@ -44,7 +45,7 @@ function getCachesDefault(): Cache | null {
 async function geocodeViaKakaoRest(query: string, restApiKey: string): Promise<LatLng | null> {
   const waitMs = Math.max(0, nextAllowedAt - Date.now())
   if (waitMs > 0) await sleep(waitMs)
-  nextAllowedAt = Date.now() + 250
+  nextAllowedAt = Date.now() + MIN_INTERVAL_MS
 
   const url = new URL("https://dapi.kakao.com/v2/local/search/address.json")
   url.searchParams.set("query", query)
@@ -159,4 +160,3 @@ export async function GET(req: Request) {
     inFlight.delete(query)
   }
 }
-

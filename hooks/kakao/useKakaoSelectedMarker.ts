@@ -8,7 +8,8 @@ export function useKakaoSelectedMarker(
   selectedId?: string,
   selectedPosition?: { lat: number; lng: number },
 ) {
-  const markerRef = useRef<any>(null)
+  const overlayRef = useRef<any>(null)
+  const elementRef = useRef<HTMLDivElement | null>(null)
   const lastPannedIdRef = useRef<string | null>(null)
 
   useEffect(() => {
@@ -22,25 +23,44 @@ export function useKakaoSelectedMarker(
       Math.abs(selectedPosition!.lng) > 0.0001
 
     if (!isValid) {
-      if (markerRef.current) {
+      if (overlayRef.current) {
         try {
-          markerRef.current.setMap(null)
+          overlayRef.current.setMap(null)
         } catch {
         }
-        markerRef.current = null
+        overlayRef.current = null
       }
+      elementRef.current = null
       lastPannedIdRef.current = null
       return
     }
 
     try {
       const pos = new (window as any).kakao.maps.LatLng(selectedPosition!.lat, selectedPosition!.lng)
-      if (!markerRef.current) {
-        markerRef.current = new (window as any).kakao.maps.Marker({ position: pos, zIndex: 9999 })
-        markerRef.current.setMap(map)
+
+      if (!overlayRef.current) {
+        const el = document.createElement("div")
+        el.style.width = "14px"
+        el.style.height = "14px"
+        el.style.borderRadius = "9999px"
+        el.style.background = "#2563eb"
+        el.style.border = "3px solid white"
+        el.style.boxShadow = "0 2px 10px rgba(0,0,0,0.35)"
+        el.style.transform = "translate(-50%, -50%)"
+        el.style.pointerEvents = "none"
+        elementRef.current = el
+
+        overlayRef.current = new (window as any).kakao.maps.CustomOverlay({
+          position: pos,
+          content: el,
+          yAnchor: 0.5,
+          xAnchor: 0.5,
+          zIndex: 9999,
+        })
+        overlayRef.current.setMap(map)
       } else {
-        markerRef.current.setPosition(pos)
-        markerRef.current.setMap(map)
+        overlayRef.current.setPosition(pos)
+        overlayRef.current.setMap(map)
       }
 
       if (selectedId && selectedId !== lastPannedIdRef.current) {

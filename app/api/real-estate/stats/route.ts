@@ -142,12 +142,24 @@ export async function GET(req: Request) {
       changeRate: number
     }> = []
 
+    let lastNonEmptyAvg: number | null = null
     for (const dealYmd of dealYmds) {
       const monthData = await fetchMonth(lawdCd, dealYmd, serviceKey)
-      if (!monthData) continue
+      if (!monthData) {
+        results.push({
+          period: toPeriod(dealYmd),
+          avgPrice: 0,
+          maxPrice: 0,
+          minPrice: 0,
+          transactionCount: 0,
+          changeRate: Number.NaN,
+        })
+        continue
+      }
 
-      const prev = results[results.length - 1]
-      const changeRate = prev ? ((monthData.avgPrice - prev.avgPrice) / prev.avgPrice) * 100 : 0
+      const changeRate =
+        lastNonEmptyAvg && lastNonEmptyAvg > 0 ? ((monthData.avgPrice - lastNonEmptyAvg) / lastNonEmptyAvg) * 100 : 0
+      lastNonEmptyAvg = monthData.avgPrice
       results.push({ ...monthData, changeRate })
     }
 

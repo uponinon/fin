@@ -6,6 +6,21 @@ import type { KakaoGeocoderQueue, GeocodeProgress } from "@/lib/kakao/geocode"
 
 type MarkerProgress = GeocodeProgress
 
+function geocodeQueryFromTransaction(t: RealEstateTransaction) {
+  const address = String(t.address ?? "").trim()
+  const dongName = String(t.dongName ?? "").trim()
+  const jibun = String(t.jibun ?? "").trim()
+
+  if (!address || !dongName || !jibun) return address || `${dongName} ${jibun}`.trim()
+
+  const idx = address.indexOf(dongName)
+  if (idx < 0) return address
+
+  const prefix = address.slice(0, idx + dongName.length)
+  const withoutCommaPrefix = prefix.split(",").pop()?.trim() || prefix.trim()
+  return `${withoutCommaPrefix} ${jibun}`.trim()
+}
+
 export function useKakaoTransactionOverlays(options: {
   enabled: boolean
   map: any
@@ -146,7 +161,7 @@ export function useKakaoTransactionOverlays(options: {
 
     const addressMap = new Map<string, RealEstateTransaction[]>()
     needGeocode.forEach((t) => {
-      const address = (t.address || "").trim()
+      const address = geocodeQueryFromTransaction(t)
       if (!address) return
       if (!addressMap.has(address)) addressMap.set(address, [])
       addressMap.get(address)!.push(t)

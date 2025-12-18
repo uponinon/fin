@@ -1,7 +1,10 @@
 type LatLng = { lat: number; lng: number }
 
 function normalizeAddress(address: string) {
-  return address.trim().replace(/\s+/g, " ")
+  return address
+    .trim()
+    .replaceAll(",", " ")
+    .replace(/\s+/g, " ")
 }
 
 function isValidCoord(lat: number, lng: number) {
@@ -64,6 +67,7 @@ export class KakaoGeocoderQueue {
   private persistTimer: any = null
   private nextAllowedAt = 0
   private pumpTimer: any = null
+  private readonly negativeCacheUntil: Map<string, number> = new Map()
 
   constructor(
     geocoder: any,
@@ -106,6 +110,11 @@ export class KakaoGeocoderQueue {
     const key = normalizeAddress(address)
     const cached = this.getCached(key)
     if (cached) return Promise.resolve(cached)
+
+    const blockedUntil = this.negativeCacheUntil.get(key) ?? 0
+    if (blockedUntil > Date.now()) {
+      return Promise.resolve(null)
+    }
 
     this.total += 1
     return new Promise<LatLng | null>((resolve) => {
@@ -155,7 +164,7 @@ export class KakaoGeocoderQueue {
           job.resolve(value)
           this.schedulePersist()
         } else if (isError && job.attempt < this.maxRetries) {
-          const delay = Math.min(30_000, this.baseRetryDelayMs * 2 ** job.attempt)
+          const delay = Math.min(60_000, this.baseRetryDelayMs * 2 ** job.attempt)
           const jitter = Math.floor(Math.random() * 250)
           this.queue.push({
             key: job.key,
@@ -164,9 +173,10 @@ export class KakaoGeocoderQueue {
             readyAt: Date.now() + delay + jitter,
             resolve: job.resolve,
           })
-          this.nextAllowedAt = Math.max(this.nextAllowedAt, Date.now() + delay / 4)
+          this.nextAllowedAt = Math.max(this.nextAllowedAt, Date.now() + delay)
         } else {
           this.failed += 1
+          this.negativeCacheUntil.set(job.key, Date.now() + 10 * 60 * 1000)
           job.resolve(null)
         }
 

@@ -6,11 +6,10 @@ import { computeRecentDealYmds } from "@/hooks/use-period-filter"
 import { fetchRealEstateData, type PriceStatistics, type RealEstateTransaction } from "@/lib/api/real-estate"
 
 function getPropertyMatchKeys(t: RealEstateTransaction | null) {
-  if (!t) return { full: "", loose: "" }
-  const areaKey = Math.round((t.area || 0) * 10)
-  const full = `${t.dongName}|${t.jibun}|${t.address}|${areaKey}`
-  const loose = `${t.dongName}|${t.jibun}|${areaKey}`
-  return { full, loose }
+  if (!t) return { core: "" }
+  const dong = String(t.dongName ?? "").trim()
+  const jibun = String(t.jibun ?? "").trim()
+  return { core: `${dong}|${jibun}` }
 }
 
 export function usePropertyTrend() {
@@ -50,7 +49,7 @@ export function usePropertyTrend() {
         const list = monthTxs[i] ?? []
         const matches = list.filter((t) => {
           const k = getPropertyMatchKeys(t)
-          return k.full === keys.full || k.loose === keys.loose
+          return Boolean(keys.core) && k.core === keys.core
         })
         const prices = matches.map((m) => m.price).filter((p) => Number.isFinite(p) && p > 0)
 
@@ -95,4 +94,3 @@ export function usePropertyTrend() {
     reload,
   }
 }
-

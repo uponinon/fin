@@ -24,6 +24,7 @@
 `.env.example`를 복사해 `.env.local`을 만들고 아래 값을 채우세요.
 
 - `NEXT_PUBLIC_KAKAO_APP_KEY`: Kakao Developers JavaScript 키(지도/검색/지오코딩)
+- `KAKAO_REST_API_KEY`: Kakao Local REST API 키(서버 프록시 지오코딩/캐시, 마커 429 방지용)
 - `DATA_GO_KR_SERVICE_KEY`(선택): data.go.kr 서비스키(서버 API 연동용)
 
 ### 2) 설치/실행

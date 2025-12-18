@@ -21,6 +21,8 @@ function geocodeQueryFromTransaction(t: RealEstateTransaction) {
   return `${withoutCommaPrefix} ${jibun}`.trim()
 }
 
+const MAX_GEOCODE_ADDRESSES_PER_LOAD = 12
+
 export function useKakaoTransactionOverlays(options: {
   enabled: boolean
   map: any
@@ -167,7 +169,7 @@ export function useKakaoTransactionOverlays(options: {
       addressMap.get(address)!.push(t)
     })
 
-    const uniqueAddresses = Array.from(addressMap.keys())
+    const uniqueAddresses = Array.from(addressMap.keys()).slice(0, MAX_GEOCODE_ADDRESSES_PER_LOAD)
     setMarkerProgress({
       total: uniqueAddresses.length,
       resolved: 0,
@@ -190,9 +192,6 @@ export function useKakaoTransactionOverlays(options: {
     }
     const progressTimer = setInterval(tickProgress, 200)
 
-    const firstBatch = uniqueAddresses.slice(0, 30)
-    const rest = uniqueAddresses.slice(30)
-
     const run = async (addresses: string[]) => {
       for (const addr of addresses) {
         if (cancelled) return
@@ -213,8 +212,7 @@ export function useKakaoTransactionOverlays(options: {
     }
 
     ;(async () => {
-      await run(firstBatch)
-      await run(rest)
+      await run(uniqueAddresses)
     })()
 
     return () => {

@@ -14,6 +14,7 @@ type Props = {
 export function KakaoMapHud({ legend, totalCount, markerProgress }: Props) {
   const hasMarkerWork =
     markerProgress.total > 0 && (markerProgress.queued > 0 || markerProgress.inFlight > 0 || markerProgress.resolved === 0)
+  const isLimited = totalCount > 0 && markerProgress.total > 0 && markerProgress.total < totalCount
 
   return (
     <>
@@ -40,9 +41,11 @@ export function KakaoMapHud({ legend, totalCount, markerProgress }: Props) {
             {markerProgress.resolved}/{markerProgress.total} (대기 {markerProgress.queued}, 진행 {markerProgress.inFlight}, 실패{" "}
             {markerProgress.failed})
           </div>
+          {isLimited ? (
+            <div className="text-[10px] text-muted-foreground pt-1">Kakao 지오코딩 제한으로 일부 마커만 표시됩니다.</div>
+          ) : null}
         </Card>
       ) : null}
     </>
   )
 }
-
